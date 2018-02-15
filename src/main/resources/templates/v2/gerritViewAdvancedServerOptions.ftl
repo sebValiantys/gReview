@@ -1,0 +1,11 @@
+[#assign useShallowClones = stack.findValue('repository.git.useShallowClones')!false/]
+[@s.checkbox labelKey='repository.gerrit.useShallowClones' name='repository.gerrit.useShallowClones' disabled=true/]
+[#if useShallowClones!false]
+    [#if (plan.buildDefinition.branchIntegrationConfiguration.enabled)!false ]
+        [@ui.messageBox type='info' titleKey='repository.gerrit.messages.branchIntegration.shallowClonesWillBeDisabled' /]
+    [/#if]
+[/#if]
+
+[@s.checkbox labelKey='repository.gerrit.useSubmodules' name='repository.gerrit.useSubmodules' disabled=true/]
+[@s.textfield labelKey='repository.gerrit.commandTimeout' name='repository.gerrit.commandTimeout' disabled=true/]
+[@s.checkbox labelKey='repository.gerrit.verbose.logs' name='repository.gerrit.verbose.logs' disabled=true/]

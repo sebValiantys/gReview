@@ -15,19 +15,61 @@
  */
 package com.houghtonassociates.bamboo.plugins;
 
-import java.io.File;
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-
+import com.atlassian.bamboo.author.Author;
+import com.atlassian.bamboo.author.AuthorCachingFacade;
+import com.atlassian.bamboo.bandana.PlanAwareBandanaContext;
+import com.atlassian.bamboo.build.BuildDefinition;
+import com.atlassian.bamboo.build.BuildLoggerManager;
+import com.atlassian.bamboo.build.fileserver.BuildDirectoryManager;
+import com.atlassian.bamboo.build.logger.BuildLogger;
+import com.atlassian.bamboo.chains.Chain;
+import com.atlassian.bamboo.commit.*;
+import com.atlassian.bamboo.commit.CommitContextImpl.Builder;
+import com.atlassian.bamboo.plan.*;
+import com.atlassian.bamboo.plan.branch.ChainBranch;
+import com.atlassian.bamboo.plan.branch.ChainBranchManager;
+import com.atlassian.bamboo.plan.branch.VcsBranch;
+import com.atlassian.bamboo.plan.branch.VcsBranchImpl;
+import com.atlassian.bamboo.plan.cache.ImmutableChain;
+import com.atlassian.bamboo.project.Project;
+import com.atlassian.bamboo.repository.*;
+import com.atlassian.bamboo.security.EncryptionService;
+import com.atlassian.bamboo.template.TemplateRenderer;
+import com.atlassian.bamboo.trigger.TriggerDefinition;
+import com.atlassian.bamboo.utils.SystemProperty;
+import com.atlassian.bamboo.utils.error.ErrorCollection;
+import com.atlassian.bamboo.utils.error.SimpleErrorCollection;
+import com.atlassian.bamboo.v2.build.BuildContext;
+import com.atlassian.bamboo.v2.build.BuildRepositoryChanges;
+import com.atlassian.bamboo.v2.build.BuildRepositoryChangesImpl;
+import com.atlassian.bamboo.v2.build.agent.capability.Requirement;
+import com.atlassian.bamboo.v2.build.agent.remote.RemoteBuildDirectoryManager;
+import com.atlassian.bamboo.v2.build.repository.CustomSourceDirectoryAwareRepository;
+import com.atlassian.bamboo.v2.build.repository.RequirementsAwareRepository;
+import com.atlassian.bamboo.v2.events.ChangeDetectionRequiredEvent;
+import com.atlassian.bamboo.variable.CustomVariableContext;
+import com.atlassian.bamboo.variable.VariableDefinitionManager;
+import com.atlassian.bamboo.vcs.configuration.PlanRepositoryDefinition;
+import com.atlassian.bamboo.ww2.actions.build.admin.create.BuildConfiguration;
+import com.atlassian.bandana.BandanaManager;
+import com.atlassian.bandana.DefaultBandanaManager;
+import com.atlassian.bandana.impl.MemoryBandanaPersister;
+import com.atlassian.event.api.EventPublisher;
+import com.atlassian.plugin.ModuleDescriptor;
+import com.houghtonassociates.bamboo.plugins.dao.GerritChangeVO;
+import com.houghtonassociates.bamboo.plugins.dao.GerritChangeVO.FileSet;
+import com.houghtonassociates.bamboo.plugins.dao.GerritChangeVO.PatchSet;
+import com.houghtonassociates.bamboo.plugins.dao.GerritConfig;
+import com.houghtonassociates.bamboo.plugins.dao.GerritProcessListener;
+import com.houghtonassociates.bamboo.plugins.dao.GerritService;
+import com.houghtonassociates.bamboo.plugins.dao.jgit.JGitRepository;
+import com.houghtonassociates.bamboo.plugins.repo.v2.GerritConstants;
+import com.opensymphony.xwork2.TextProvider;
+import com.sonymobile.tools.gerrit.gerritevents.GerritConnectionConfig2;
+import com.sonymobile.tools.gerrit.gerritevents.dto.GerritEvent;
+import com.sonymobile.tools.gerrit.gerritevents.dto.events.PatchsetCreated;
+import com.sonymobile.tools.gerrit.gerritevents.ssh.Authentication;
+import com.sonymobile.tools.gerrit.gerritevents.watchdog.WatchTimeExceptionData;
 import org.apache.commons.configuration.HierarchicalConfiguration;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang.StringUtils;
@@ -42,82 +84,9 @@ import org.eclipse.jgit.revwalk.RevCommit;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import com.atlassian.bamboo.author.Author;
-import com.atlassian.bamboo.author.AuthorCachingFacade;
-import com.atlassian.bamboo.bandana.PlanAwareBandanaContext;
-import com.atlassian.bamboo.build.BuildDefinition;
-import com.atlassian.bamboo.build.BuildLoggerManager;
-import com.atlassian.bamboo.build.fileserver.BuildDirectoryManager;
-import com.atlassian.bamboo.build.logger.BuildLogger;
-import com.atlassian.bamboo.build.strategy.BuildStrategy;
-import com.atlassian.bamboo.build.strategy.TriggeredBuildStrategy;
-import com.atlassian.bamboo.chains.Chain;
-import com.atlassian.bamboo.commit.Commit;
-import com.atlassian.bamboo.commit.CommitContext;
-import com.atlassian.bamboo.commit.CommitContextImpl;
-import com.atlassian.bamboo.commit.CommitContextImpl.Builder;
-import com.atlassian.bamboo.commit.CommitFile;
-import com.atlassian.bamboo.commit.CommitFileImpl;
-import com.atlassian.bamboo.commit.CommitImpl;
-import com.atlassian.bamboo.plan.PlanExecutionManager;
-import com.atlassian.bamboo.plan.PlanKey;
-import com.atlassian.bamboo.plan.PlanKeys;
-import com.atlassian.bamboo.plan.PlanManager;
-import com.atlassian.bamboo.plan.TopLevelPlan;
-import com.atlassian.bamboo.plan.branch.ChainBranch;
-import com.atlassian.bamboo.plan.branch.ChainBranchManager;
-import com.atlassian.bamboo.plan.branch.VcsBranch;
-import com.atlassian.bamboo.plan.branch.VcsBranchImpl;
-import com.atlassian.bamboo.plan.cache.ImmutableChain;
-import com.atlassian.bamboo.project.Project;
-import com.atlassian.bamboo.repository.AbstractStandaloneRepository;
-import com.atlassian.bamboo.repository.AdvancedConfigurationAwareRepository;
-import com.atlassian.bamboo.repository.BranchInformationProvider;
-import com.atlassian.bamboo.repository.BranchMergingAwareRepository;
-import com.atlassian.bamboo.repository.BranchingAwareRepository;
-import com.atlassian.bamboo.repository.CustomVariableProviderRepository;
-import com.atlassian.bamboo.repository.PushCapableRepository;
-import com.atlassian.bamboo.repository.Repository;
-import com.atlassian.bamboo.repository.RepositoryDataEntity;
-import com.atlassian.bamboo.repository.RepositoryDefinition;
-import com.atlassian.bamboo.repository.RepositoryDefinitionManager;
-import com.atlassian.bamboo.repository.RepositoryException;
-import com.atlassian.bamboo.security.EncryptionService;
-import com.atlassian.bamboo.template.TemplateRenderer;
-import com.atlassian.bamboo.trigger.TriggerDefinition;
-import com.atlassian.bamboo.util.Narrow;
-import com.atlassian.bamboo.utils.SystemProperty;
-import com.atlassian.bamboo.utils.error.ErrorCollection;
-import com.atlassian.bamboo.utils.error.SimpleErrorCollection;
-import com.atlassian.bamboo.v2.build.BuildContext;
-import com.atlassian.bamboo.v2.build.BuildRepositoryChanges;
-import com.atlassian.bamboo.v2.build.BuildRepositoryChangesImpl;
-import com.atlassian.bamboo.v2.build.agent.capability.Requirement;
-import com.atlassian.bamboo.v2.build.agent.remote.RemoteBuildDirectoryManager;
-import com.atlassian.bamboo.v2.build.repository.CustomSourceDirectoryAwareRepository;
-import com.atlassian.bamboo.v2.build.repository.RequirementsAwareRepository;
-import com.atlassian.bamboo.v2.events.ChangeDetectionRequiredEvent;
-import com.atlassian.bamboo.variable.CustomVariableContext;
-import com.atlassian.bamboo.variable.VariableDefinitionManager;
-import com.atlassian.bamboo.ww2.actions.build.admin.create.BuildConfiguration;
-import com.atlassian.bandana.BandanaManager;
-import com.atlassian.bandana.DefaultBandanaManager;
-import com.atlassian.bandana.impl.MemoryBandanaPersister;
-import com.atlassian.event.api.EventPublisher;
-import com.atlassian.plugin.ModuleDescriptor;
-import com.houghtonassociates.bamboo.plugins.dao.GerritChangeVO;
-import com.houghtonassociates.bamboo.plugins.dao.GerritChangeVO.FileSet;
-import com.houghtonassociates.bamboo.plugins.dao.GerritChangeVO.PatchSet;
-import com.houghtonassociates.bamboo.plugins.dao.GerritConfig;
-import com.houghtonassociates.bamboo.plugins.dao.GerritProcessListener;
-import com.houghtonassociates.bamboo.plugins.dao.GerritService;
-import com.houghtonassociates.bamboo.plugins.dao.jgit.JGitRepository;
-import com.opensymphony.xwork2.TextProvider;
-import com.sonymobile.tools.gerrit.gerritevents.GerritConnectionConfig2;
-import com.sonymobile.tools.gerrit.gerritevents.dto.GerritEvent;
-import com.sonymobile.tools.gerrit.gerritevents.dto.events.PatchsetCreated;
-import com.sonymobile.tools.gerrit.gerritevents.ssh.Authentication;
-import com.sonymobile.tools.gerrit.gerritevents.watchdog.WatchTimeExceptionData;
+import java.io.File;
+import java.io.IOException;
+import java.util.*;
 
 /**
  * This class allows bamboo to use Gerrit as if it were a repository.
@@ -217,7 +186,7 @@ public class GerritRepositoryAdapter extends AbstractStandaloneRepository
     private static final String CUSTOM_BRANCH_SET = "Custom";
 
     private String hostname = "";
-    private int port = 29418;
+    private int port = GerritConstants.REPOSITORY_GERRIT_REPOSITORY_DEFAULT_PORT;
     private String project = "";
     private String username = "";
     private String userEmail = "";
@@ -243,14 +212,38 @@ public class GerritRepositoryAdapter extends AbstractStandaloneRepository
     private ChainBranchManager chainBranchManager = null;
     private RepositoryDefinitionManager repositoryDefinitionManager = null;
     private VariableDefinitionManager variableDefinitionManager = null;
-
     private EventPublisher eventPublisher = null;
-
     private EncryptionService encryptionService;
 
     private GerritConfig gc = new GerritConfig();
 
     private GerritChangeVO lastGerritChange = null;
+
+    public GerritRepositoryAdapter(PlanManager planManager,
+                                   PlanExecutionManager planExeManager,
+                                   ChainBranchManager chainBranchManager,
+                                   RepositoryDefinitionManager repositoryDefinitionManager,
+                                   VariableDefinitionManager variableDefinitionManager,
+                                   EventPublisher eventPublisher,
+                                   BuildDirectoryManager buildDirectoryManager,
+                                   BuildLoggerManager buildLoggerManager,
+                                   CustomVariableContext customVariableContext,
+                                   TextProvider textProvider,
+                                   TemplateRenderer templateRenderer,
+                                   EncryptionService encryptionService) {
+        this.planManager = planManager;
+        this.planExeManager = planExeManager;
+        this.chainBranchManager = chainBranchManager;
+        this.repositoryDefinitionManager = repositoryDefinitionManager;
+        this.variableDefinitionManager = variableDefinitionManager;
+        this.eventPublisher = eventPublisher;
+        this.encryptionService = encryptionService;
+        this.buildDirectoryManager = buildDirectoryManager;
+        this.customVariableContext = customVariableContext;
+        this.templateRenderer = templateRenderer;
+        this.buildLoggerManager = buildLoggerManager;
+        this.textProvider = textProvider;
+    }
 
     @Override
     public void init(ModuleDescriptor moduleDescriptor) {
@@ -284,13 +277,11 @@ public class GerritRepositoryAdapter extends AbstractStandaloneRepository
         return repositoryDefinitionManager;
     }
 
-    public void
-                    setRepositoryDefinitionManager(RepositoryDefinitionManager repositoryDefinitionManager) {
+    public void setRepositoryDefinitionManager(RepositoryDefinitionManager repositoryDefinitionManager) {
         this.repositoryDefinitionManager = repositoryDefinitionManager;
     }
 
-    public void
-                    setVariableDefinitionManager(VariableDefinitionManager variableDefinitionManager) {
+    public void setVariableDefinitionManager(VariableDefinitionManager variableDefinitionManager) {
         this.variableDefinitionManager = variableDefinitionManager;
     }
 
@@ -303,45 +294,32 @@ public class GerritRepositoryAdapter extends AbstractStandaloneRepository
     }
 
     @Override
-    public void
-                    prepareConfigObject(@NotNull BuildConfiguration buildConfiguration) {
+    public void prepareConfigObject(@NotNull BuildConfiguration buildConfiguration) {
         super.prepareConfigObject(buildConfiguration);
 
         log.debug("Preparing gerrit repository adapter...");
 
-        String strHostName =
-            buildConfiguration.getString(REPOSITORY_GERRIT_REPOSITORY_HOSTNAME,
-                "").trim();
-        buildConfiguration.setProperty(REPOSITORY_GERRIT_REPOSITORY_HOSTNAME,
-            strHostName);
+        String strHostName = buildConfiguration.getString(REPOSITORY_GERRIT_REPOSITORY_HOSTNAME, "").trim();
+        buildConfiguration.setProperty(REPOSITORY_GERRIT_REPOSITORY_HOSTNAME, strHostName);
 
         String strPort =
-            buildConfiguration.getString(REPOSITORY_GERRIT_REPOSITORY_PORT, "")
-                .trim();
-        buildConfiguration.setProperty(REPOSITORY_GERRIT_REPOSITORY_PORT,
-            strPort);
+            buildConfiguration.getString(REPOSITORY_GERRIT_REPOSITORY_PORT, "").trim();
+        buildConfiguration.setProperty(REPOSITORY_GERRIT_REPOSITORY_PORT,strPort);
 
-        String strProject =
-            buildConfiguration.getString(REPOSITORY_GERRIT_PROJECT, "").trim();
+        String strProject = buildConfiguration.getString(REPOSITORY_GERRIT_PROJECT, "").trim();
         buildConfiguration.setProperty(REPOSITORY_GERRIT_PROJECT, strProject);
 
-        String strUserName =
-            buildConfiguration.getString(REPOSITORY_GERRIT_USERNAME, "").trim();
+        String strUserName = buildConfiguration.getString(REPOSITORY_GERRIT_USERNAME, "").trim();
         buildConfiguration.setProperty(REPOSITORY_GERRIT_USERNAME, strUserName);
 
-        String strPhrase =
-            buildConfiguration.getString(TEMPORARY_GERRIT_SSH_PASSPHRASE);
-        if (buildConfiguration
-            .getBoolean(TEMPORARY_GERRIT_SSH_PASSPHRASE_CHANGE)) {
-            buildConfiguration.setProperty(REPOSITORY_GERRIT_SSH_PASSPHRASE,
-                encryptionService.encrypt(strPhrase));
+        String strPhrase = buildConfiguration.getString(TEMPORARY_GERRIT_SSH_PASSPHRASE);
+        if (buildConfiguration.getBoolean(TEMPORARY_GERRIT_SSH_PASSPHRASE_CHANGE)) {
+            buildConfiguration.setProperty(REPOSITORY_GERRIT_SSH_PASSPHRASE, encryptionService.encrypt(strPhrase));
         }
 
         String decryptedKey = "";
         if (buildConfiguration.getBoolean(TEMPORARY_GERRIT_SSH_KEY_CHANGE)) {
-            final Object o =
-                buildConfiguration
-                    .getProperty(TEMPORARY_GERRIT_SSH_KEY_FROM_FILE);
+            final Object o = buildConfiguration.getProperty(TEMPORARY_GERRIT_SSH_KEY_FROM_FILE);
             if (o instanceof File) {
                 File f = (File) o;
 
@@ -349,42 +327,32 @@ public class GerritRepositoryAdapter extends AbstractStandaloneRepository
                     decryptedKey = FileUtils.readFileToString(f);
                 } catch (IOException e) {
                     log.error(
-                        textProvider
-                            .getText("repository.gerrit.messages.error.ssh.key.read"),
-                        e);
+                        textProvider.getText("repository.gerrit.messages.error.ssh.key.read"),e);
                     return;
                 }
 
-                buildConfiguration.setProperty(REPOSITORY_GERRIT_SSH_KEY,
-                    encryptionService.encrypt(decryptedKey));
+                buildConfiguration.setProperty(REPOSITORY_GERRIT_SSH_KEY,encryptionService.encrypt(decryptedKey));
             } else {
                 buildConfiguration.clearProperty(REPOSITORY_GERRIT_SSH_KEY);
             }
         } else {
-            decryptedKey =
-                encryptionService.decrypt(buildConfiguration.getString(
-                    REPOSITORY_GERRIT_SSH_KEY, ""));
+            decryptedKey = encryptionService.decrypt(buildConfiguration.getString(REPOSITORY_GERRIT_SSH_KEY, ""));
         }
 
-        relativeConfigPath =
-            this.getRelativeConfigDirectory(buildConfiguration);
+        relativeConfigPath = this.getRelativeConfigDirectory(buildConfiguration);
 
-        buildConfiguration.setProperty(REPOSITORY_GERRIT_CONFIG_DIR,
-            relativeConfigPath);
+        buildConfiguration.setProperty(REPOSITORY_GERRIT_CONFIG_DIR,relativeConfigPath);
 
         relativeSSHKeyFilePath = getRelativeRepoPath(buildConfiguration);
 
         File f = prepareSSHKeyFile(relativeSSHKeyFilePath, decryptedKey);
 
         if (f != null) {
-            buildConfiguration.setProperty(REPOSITORY_GERRIT_SSH_KEY_FILE,
-                relativeSSHKeyFilePath);
+            buildConfiguration.setProperty(REPOSITORY_GERRIT_SSH_KEY_FILE,relativeSSHKeyFilePath);
         }
 
-        String strDefBranch =
-            buildConfiguration.getString(REPOSITORY_GERRIT_DEFAULT_BRANCH, "");
-        String strCustBranch =
-            buildConfiguration.getString(REPOSITORY_GERRIT_CUSTOM_BRANCH, "");
+        String strDefBranch = buildConfiguration.getString(REPOSITORY_GERRIT_DEFAULT_BRANCH, "");
+        String strCustBranch = buildConfiguration.getString(REPOSITORY_GERRIT_CUSTOM_BRANCH, "");
 
         if (strDefBranch == null || strDefBranch.isEmpty())
             strDefBranch = CUSTOM_BRANCH_SET;
@@ -396,43 +364,29 @@ public class GerritRepositoryAdapter extends AbstractStandaloneRepository
 
         if (strDefBranch.equals(MASTER_BRANCH.getName())
             || strDefBranch.equals(ALL_BRANCH.getName())) {
-            buildConfiguration.setProperty(REPOSITORY_GERRIT_DEFAULT_BRANCH,
-                strDefBranch);
-            buildConfiguration.setProperty(REPOSITORY_GERRIT_CUSTOM_BRANCH,
-                strDefBranch);
-
-            buildConfiguration.setProperty(REPOSITORY_GERRIT_BRANCH,
-                strDefBranch);
+            buildConfiguration.setProperty(REPOSITORY_GERRIT_DEFAULT_BRANCH, strDefBranch);
+            buildConfiguration.setProperty(REPOSITORY_GERRIT_CUSTOM_BRANCH, strDefBranch);
+            buildConfiguration.setProperty(REPOSITORY_GERRIT_BRANCH, strDefBranch);
         } else {
-            buildConfiguration.setProperty(REPOSITORY_GERRIT_DEFAULT_BRANCH,
-                CUSTOM_BRANCH_SET);
-            buildConfiguration.setProperty(REPOSITORY_GERRIT_CUSTOM_BRANCH,
-                strCustBranch);
-            buildConfiguration.setProperty(REPOSITORY_GERRIT_BRANCH,
-                strCustBranch);
+            buildConfiguration.setProperty(REPOSITORY_GERRIT_DEFAULT_BRANCH, CUSTOM_BRANCH_SET);
+            buildConfiguration.setProperty(REPOSITORY_GERRIT_CUSTOM_BRANCH, strCustBranch);
+            buildConfiguration.setProperty(REPOSITORY_GERRIT_BRANCH, strCustBranch);
         }
     }
 
     private String getBaseBuildWorkingDirectory() {
-        File parentDirectoryFile =
-            this.buildDirectoryManager.getBaseBuildWorkingDirectory();
-
+        File parentDirectoryFile = this.buildDirectoryManager.getBaseBuildWorkingDirectory();
         String parentDirectory = parentDirectoryFile.getAbsolutePath();
-
         return parentDirectory;
     }
 
     private String getRelativePath(BuildConfiguration buildConfiguration) {
         String projectChainKey = "linked";
 
-        String planKey =
-            buildConfiguration.getString(REPOSITORY_GERRIT_PLAN_KEY);
-        String projectKey =
-            buildConfiguration.getString(REPOSITORY_GERRIT_PROJECT_KEY);
-        String chainKey =
-            buildConfiguration.getString(REPOSITORY_GERRIT_CHAIN_KEY);
-        String strProject =
-            buildConfiguration.getString(REPOSITORY_GERRIT_PROJECT, "").trim();
+        String planKey = buildConfiguration.getString(REPOSITORY_GERRIT_PLAN_KEY);
+        String projectKey = buildConfiguration.getString(REPOSITORY_GERRIT_PROJECT_KEY);
+        String chainKey = buildConfiguration.getString(REPOSITORY_GERRIT_CHAIN_KEY);
+        String strProject = buildConfiguration.getString(REPOSITORY_GERRIT_PROJECT, "").trim();
 
         if ((projectKey != null) && (chainKey != null))
             projectChainKey = projectKey + "-" + chainKey;
@@ -471,8 +425,7 @@ public class GerritRepositoryAdapter extends AbstractStandaloneRepository
     }
 
     public synchronized File prepareConfigDir(String strRelativePath) {
-        String filePath =
-            getBaseBuildWorkingDirectory() + File.separator + strRelativePath;
+        String filePath = getBaseBuildWorkingDirectory() + File.separator + strRelativePath;
 
         File f = new File(filePath);
 
@@ -635,7 +588,7 @@ public class GerritRepositoryAdapter extends AbstractStandaloneRepository
         sshPassphrase =
             encryptionService.decrypt(config
                 .getString(REPOSITORY_GERRIT_SSH_PASSPHRASE));
-        port = config.getInt(REPOSITORY_GERRIT_REPOSITORY_PORT, 29418);
+        port = config.getInt(REPOSITORY_GERRIT_REPOSITORY_PORT, GerritConstants.REPOSITORY_GERRIT_REPOSITORY_DEFAULT_PORT);
         project = config.getString(REPOSITORY_GERRIT_PROJECT);
 
         String strDefBranch =
@@ -704,11 +657,11 @@ public class GerritRepositoryAdapter extends AbstractStandaloneRepository
         try {
             initializeGerritService();
             if (this.isOnLocalAgent()) {
-                if (isRemoteTriggeringReop()) {
+                /*if (isRemoteTriggeringRepo()) {
                     getGerritDAO().addListener(this);
                 } else {
                     getGerritDAO().removeListener(this);
-                }
+                }*/
             }
         } catch (RepositoryException e) {
             log.error(e.getMessage());
@@ -762,17 +715,13 @@ public class GerritRepositoryAdapter extends AbstractStandaloneRepository
 
     private void initializeGerritService() throws RepositoryException {
         getGerritDAO().initialize();
-
         String strVersion = getGerritDAO().getGerritVersion();
-
         log.info(String.format("Gerrit Version: %s", strVersion));
-
         userEmail = getGerritDAO().getGerritSystemUserEmail();
     }
 
     @Override
-    public void
-                    setBuildDirectoryManager(BuildDirectoryManager buildDirectoryManager) {
+    public void setBuildDirectoryManager(BuildDirectoryManager buildDirectoryManager) {
         super.setBuildDirectoryManager(buildDirectoryManager);
     }
 
@@ -782,8 +731,7 @@ public class GerritRepositoryAdapter extends AbstractStandaloneRepository
     }
 
     @Override
-    public void
-                    setCustomVariableContext(CustomVariableContext customVariableContext) {
+    public void setCustomVariableContext(CustomVariableContext customVariableContext) {
         super.setCustomVariableContext(customVariableContext);
     }
 
@@ -797,8 +745,7 @@ public class GerritRepositoryAdapter extends AbstractStandaloneRepository
         super.setTextProvider(textProvider);
     }
 
-    public ErrorCollection
-                    testGerritConnection(String sshRelKeyFile, String key,
+    public ErrorCollection testGerritConnection(String sshRelKeyFile, String key,
                                          String strHost, int port,
                                          String strUsername, String strProject,
                                          String phrase) throws RepositoryException {
@@ -859,8 +806,7 @@ public class GerritRepositoryAdapter extends AbstractStandaloneRepository
 
     @Override
     public BuildRepositoryChanges
-                    collectChangesSinceLastBuild(String planKey,
-                                                 String lastVcsRevisionKey) throws RepositoryException {
+                    collectChangesSinceLastBuild(String planKey, String lastVcsRevisionKey) throws RepositoryException {
         PlanKey actualKey = PlanKeys.getPlanKey(planKey);
         final BuildLogger buildLogger = buildLoggerManager.getLogger(actualKey);
         List<Commit> commits = new ArrayList<Commit>();
@@ -1119,8 +1065,7 @@ public class GerritRepositoryAdapter extends AbstractStandaloneRepository
 
     @Override
     @NotNull
-    public String
-                    retrieveSourceCode(@NotNull BuildContext buildContext,
+    public String retrieveSourceCode(@NotNull BuildContext buildContext,
                                        String vcsRevisionKey,
                                        File sourceDirectory, int depth) throws RepositoryException {
         String originalVcsRevisionKey = vcsRevisionKey;
@@ -1131,8 +1076,7 @@ public class GerritRepositoryAdapter extends AbstractStandaloneRepository
 
         lastGerritChange = null;
 
-        GerritChangeVO change =
-            this.getGerritDAO().getChangeByRevision(vcsRevisionKey);
+        GerritChangeVO change = this.getGerritDAO().getChangeByRevision(vcsRevisionKey);
 
         if (change != null) {
             buildLogger.addBuildLogEntry(String.format(
@@ -1151,20 +1095,17 @@ public class GerritRepositoryAdapter extends AbstractStandaloneRepository
         log.debug(String.format("getVcsBranch()=%s", getVcsBranch().getName()));
 
         JGitRepository jgitRepo = new JGitRepository();
-
         jgitRepo.setAccessData(gc);
-
         jgitRepo.open(sourceDirectory);
-
         jgitRepo.openSSHTransport();
 
-        if (doShallowFetch)
+        if (doShallowFetch) {
             jgitRepo.fetch(vcsRevisionKey, depth);
-        else
+        } else {
             jgitRepo.fetch(vcsRevisionKey);
+        }
 
         jgitRepo.checkout(vcsRevisionKey);
-
         jgitRepo.close();
 
         return originalVcsRevisionKey;
@@ -1176,24 +1117,16 @@ public class GerritRepositoryAdapter extends AbstractStandaloneRepository
     }
 
     @Override
-    public boolean
-                    mergeWorkspaceWith(@NotNull final BuildContext buildContext,
+    public boolean mergeWorkspaceWith(@NotNull final BuildContext buildContext,
                                        @NotNull final File file,
                                        @NotNull final String s) throws RepositoryException {
         JGitRepository jgitRepo = new JGitRepository();
-
         jgitRepo.setAccessData(gc);
-
         jgitRepo.open(file);
-
         jgitRepo.openSSHTransport();
-
         jgitRepo.fetch("refs/heads/" + this.getVcsBranch().getName());
-
         org.eclipse.jgit.api.MergeResult mr = jgitRepo.merge(s);
-
         jgitRepo.close();
-
         MergeStatus ms = mr.getMergeStatus();
 
         if (ms.isSuccessful()) {
@@ -1264,8 +1197,7 @@ public class GerritRepositoryAdapter extends AbstractStandaloneRepository
 
     @NotNull
     @Override
-    public String
-                    commit(@NotNull final File file, @NotNull final String s) throws RepositoryException {
+    public String commit(@NotNull final File file, @NotNull final String s) throws RepositoryException {
         JGitRepository jgitRepo = new JGitRepository();
 
         jgitRepo.setAccessData(gc);
@@ -1317,7 +1249,7 @@ public class GerritRepositoryAdapter extends AbstractStandaloneRepository
     public List<VcsBranch>
                     getOpenBranches(String context) throws RepositoryException {
         List<VcsBranch> vcsBranches = new ArrayList<VcsBranch>();
-        PlanKey planKey = findFirstPlanKey(false);
+        /*PlanKey planKey = findFirstPlanKey(false);
 
         if (planKey != null) {
             JGitRepository jgitRepo = new JGitRepository();
@@ -1345,7 +1277,7 @@ public class GerritRepositoryAdapter extends AbstractStandaloneRepository
             }
 
             jgitRepo.close();
-        }
+        }*/
 
         return vcsBranches;
     }
@@ -1464,67 +1396,52 @@ public class GerritRepositoryAdapter extends AbstractStandaloneRepository
      *            , dertmined if plan uses repository for remote use
      * @return
      */
-    private boolean isRepoTriggerFor(ImmutableChain chain,
-                                     boolean isRemoteTrigger) {
-        List<BuildStrategy> strats = chain.getTriggers();
-        List<RepositoryDefinition> cRepos =
-            new ArrayList<RepositoryDefinition>();
+    private boolean isRepoTriggerFor(ImmutableChain chain, boolean isRemoteTrigger) {
+        //List<BuildStrategy> strats = chain.getTriggers();
+        List<TriggerDefinition> strats = chain.getTriggerDefinitions();
+        List<PlanRepositoryDefinition> cRepos = new ArrayList<PlanRepositoryDefinition>();
 
-        cRepos = chain.getEffectiveRepositoryDefinitions();
+        cRepos = chain.getPlanRepositoryDefinitions();
 
-        for (RepositoryDefinition rd : cRepos) {
+        for (PlanRepositoryDefinition rd : cRepos) {
             if (rd.getName().toLowerCase().equals(this.getName().toLowerCase())
                 && rd.getPluginKey().equals(this.getKey())) {
-                HierarchicalConfiguration hconfig = rd.getConfiguration();
-                String strDefBranch =
-                    hconfig.getString(REPOSITORY_GERRIT_DEFAULT_BRANCH, "");
-                String strCustBranch =
-                    hconfig.getString(REPOSITORY_GERRIT_CUSTOM_BRANCH, "");
+                //HierarchicalConfiguration hconfig = rd.getConfiguration();
+                // FIXME : check code returns the same map
+                Map<String, String> hconfig = rd.getViewerConfiguration().getConfiguration();
+                String strDefBranch = hconfig.getOrDefault(REPOSITORY_GERRIT_DEFAULT_BRANCH, "");
+                String strCustBranch = hconfig.getOrDefault(REPOSITORY_GERRIT_CUSTOM_BRANCH, "");
 
                 if (this.getVcsBranch().isEqualToBranchWith(strDefBranch)
                     || this.getVcsBranch().isEqualToBranchWith(strCustBranch)) {
 
                     if (isRemoteTrigger) {
-                        for (BuildStrategy s : strats) {
-                            if (s instanceof TriggeredBuildStrategy) {
-                                TriggeredBuildStrategy tbs =
-                                    Narrow.downTo(s,
-                                        TriggeredBuildStrategy.class);
+                        for (TriggerDefinition s : strats) {
+                            Set<Long> repos = s.getTriggeringRepositories();
 
-                                Set<Long> repos =
-                                    tbs.getTriggeringRepositories();
-
-                                if (repos.contains(rd.getId())) {
-                                    return true;
-                                } else {
-                                    for (Long rID : repos) {
-                                        RepositoryDataEntity rde =
-                                            repositoryDefinitionManager
-                                                .getRepositoryDataEntity(rID);
-                                        if (rde.getName()
-                                            .equals(this.getName())
-                                            && rde.getPluginKey().equals(
-                                                this.getKey())) {
-                                            return true;
-                                        }
+                            if (repos.contains(rd.getId())) {
+                                return true;
+                            } else {
+                                for (Long rID : repos) {
+                                    RepositoryDataEntity rde = repositoryDefinitionManager.getRepositoryDataEntity(rID);
+                                    if (rde.getName().equals(this.getName())
+                                        && rde.getPluginKey().equals(this.getKey())) {
+                                        return true;
                                     }
                                 }
-                            } else {
-                                return false;
                             }
                         }
                     } else {
                         return true;
                     }
                 }
-
             }
         }
 
         return false;
     }
 
-    private boolean isRemoteTriggeringReop() {
+    private boolean isRemoteTriggeringRepo() {
         ImmutableChain c = this.findFirstPlan(true);
 
         return (c != null);

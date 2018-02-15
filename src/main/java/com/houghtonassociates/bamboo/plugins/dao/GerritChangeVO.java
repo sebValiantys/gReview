@@ -15,12 +15,12 @@
  */
 package com.houghtonassociates.bamboo.plugins.dao;
 
+import com.sonymobile.tools.gerrit.gerritevents.dto.attr.Account;
+import com.sonymobile.tools.gerrit.gerritevents.dto.attr.Change;
+
 import java.util.Date;
 import java.util.HashSet;
 import java.util.Set;
-
-import com.sonymobile.tools.gerrit.gerritevents.dto.attr.Account;
-import com.sonymobile.tools.gerrit.gerritevents.dto.attr.Change;
 
 public class GerritChangeVO {
 

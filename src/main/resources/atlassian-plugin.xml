@@ -18,72 +18,74 @@
         <description>${project.description}</description>
         <version>${project.version}</version>
         <vendor name="${project.organization.name}" url="${project.organization.url}" />
-        <bundle-instructions>
-      	    <Import-Package>
-      	    com.atlassian.bamboo.ww2.*;resolution:=optional,
-      	    com.atlassian.bamboo.agent.*;resolution:=optional,
-      	    com.atlassian.bamboo.applinks.*;resolution:=optional,
-      	    com.atlassian.bamboo.author.*;resolution:=optional,
-      	    com.atlassian.bamboo.build.*;resolution:=optional,
-      	    com.atlassian.bamboo.builder.*;resolution:=optional,
-      	    com.atlassian.bamboo.caching.*;resolution:=optional,
-      	    com.atlassian.bamboo.chains.*;resolution:=optional,
-      	    com.atlassian.bamboo.collections.*;resolution:=optional,
-      	    com.atlassian.bamboo.commit.*;resolution:=optional,
-      	    com.atlassian.bamboo.configuration.*;resolution:=optional,
-      	    com.atlassian.bamboo.core.*;resolution:=optional,
-      	    com.atlassian.bamboo.event.*;resolution:=optional,
-      	    com.atlassian.bamboo.labels.*;resolution:=optional,
-      	    com.atlassian.bamboo.license.*;resolution:=optional,
-      	    com.atlassian.bamboo.logger.*;resolution:=optional,
-      	    com.atlassian.bamboo.persister.*;resolution:=optional,
-      	    com.atlassian.bamboo.plan.*;resolution:=optional,
-      	    com.atlassian.bamboo.repository.*;resolution:=optional,
-      	    com.atlassian.bamboo.results.*;resolution:=optional,
-      	    com.atlassian.bamboo.resultsummary.*;resolution:=optional,
-      	    com.atlassian.bamboo.security.*;resolution:=optional,
-      	    com.atlassian.bamboo.ssh.*;resolution:=optional,
-      	    com.atlassian.bamboo.task.*;resolution:=optional,
-      	    com.atlassian.bamboo.template.*;resolution:=optional,
-      	    com.atlassian.bamboo.user.*;resolution:=optional,
-      	    com.atlassian.bamboo.variable.*;resolution:=optional,
-      	    com.atlassian.bamboo.webrepository.*;resolution:=optional,
-      	    com.atlassian.bamboo.v2.build.*;resolution:=optional,
-      	    com.atlassian.bamboo.v2.events.*;resolution:=optional,
-      	    com.atlassian.bamboo.v2.ww2.build.*;resolution:=optional,
-            com.atlassian.bamboo.bandana.*;resolution:=optional,
-            com.atlassian.bamboo.collections.*;resolution:=optional,
-            com.atlassian.bamboo.resultsummary.vcs.*;resolution:=optional,
-            com.atlassian.bamboo.webwork.util.*;resolution:=optional,
-            com.atlassian.bamboo.utils.*;resolution:=optional,
-            com.atlassian.event.api.*;resolution:=optional,
-            com.atlassian.bandana.impl.*;resolution:=optional,
-            com.atlassian.applinks.api.*;resolution:=optional,
-            com.atlassian.sal.*;resolution:=optional,
-            com.atlassian.spring.container.*;resolution:=optional,
-            com.atlassian.util.concurrent.*;resolution:=optional,
-            com.opensymphony.util.*;resolution:=optional,
-            org.apache.http.auth.*;resolution:=optional,
-            org.apache.log4j;resolution:=optional,
-            org.apache.commons.beanutils.*;resolution:=optional,
-            org.apache.commons.collections.*;resolution:=optional,
-            org.apache.commons.commons-lang3.*;version="3.1",
-            org.apache.commons.commons-io.*;version="1.3.2",
-            org.apache.commons.configuration.*;resolution:=optional,
-            org.apache.commons.io.*;resolution:=optional,
-            org.apache.commons.logging.*;resolution:=optional,
-            org.apache.commons.lang.*;resolution:=optional,
-            org.slf4j.*;resolution:=optional,
-            javax.crypto.*;resolution:=optional,
-            javax.net.ssl.*;resolution:=optional,
-            net.sf.json.*;resolution:="2.4",
-      	    com.jcraft.jzlib.*;version="1.1.3",
-      	    com.jcraft.jsch.*;version="0.1.51",
-            org.eclipse.jgit.*;version="4.0.3.201509231615-r",
-            com.sonymobile.tools.gerrit.*;version="2.5.0",
-            com.houghtonassociates.bamboo.*,
-      	    </Import-Package>
-    	</bundle-instructions>
+        <param name="plugin-icon">Gerrit_icon.png</param>
+        <param name="plugin-logo">Gerrit_logo.png</param>
+        <!--<bundle-instructions>-->
+      	    <!--<Import-Package>-->
+                <!--com.atlassian.bamboo.ww2.*;resolution:=optional,-->
+                <!--com.atlassian.bamboo.agent.*;resolution:=optional,-->
+                <!--com.atlassian.bamboo.applinks.*;resolution:=optional,-->
+                <!--com.atlassian.bamboo.author.*;resolution:=optional,-->
+                <!--com.atlassian.bamboo.build.*;resolution:=optional,-->
+                <!--com.atlassian.bamboo.builder.*;resolution:=optional,-->
+                <!--com.atlassian.bamboo.caching.*;resolution:=optional,-->
+                <!--com.atlassian.bamboo.chains.*;resolution:=optional,-->
+                <!--com.atlassian.bamboo.collections.*;resolution:=optional,-->
+                <!--com.atlassian.bamboo.commit.*;resolution:=optional,-->
+                <!--com.atlassian.bamboo.configuration.*;resolution:=optional,-->
+                <!--com.atlassian.bamboo.core.*;resolution:=optional,-->
+                <!--com.atlassian.bamboo.event.*;resolution:=optional,-->
+                <!--com.atlassian.bamboo.labels.*;resolution:=optional,-->
+                <!--com.atlassian.bamboo.license.*;resolution:=optional,-->
+                <!--com.atlassian.bamboo.logger.*;resolution:=optional,-->
+                <!--com.atlassian.bamboo.persister.*;resolution:=optional,-->
+                <!--com.atlassian.bamboo.plan.*;resolution:=optional,-->
+                <!--com.atlassian.bamboo.repository.*;resolution:=optional,-->
+                <!--com.atlassian.bamboo.results.*;resolution:=optional,-->
+                <!--com.atlassian.bamboo.resultsummary.*;resolution:=optional,-->
+                <!--com.atlassian.bamboo.security.*;resolution:=optional,-->
+                <!--com.atlassian.bamboo.ssh.*;resolution:=optional,-->
+                <!--com.atlassian.bamboo.task.*;resolution:=optional,-->
+                <!--com.atlassian.bamboo.template.*;resolution:=optional,-->
+                <!--com.atlassian.bamboo.user.*;resolution:=optional,-->
+                <!--com.atlassian.bamboo.variable.*;resolution:=optional,-->
+                <!--com.atlassian.bamboo.webrepository.*;resolution:=optional,-->
+                <!--com.atlassian.bamboo.v2.build.*;resolution:=optional,-->
+                <!--com.atlassian.bamboo.v2.events.*;resolution:=optional,-->
+                <!--com.atlassian.bamboo.v2.ww2.build.*;resolution:=optional,-->
+                <!--com.atlassian.bamboo.bandana.*;resolution:=optional,-->
+                <!--com.atlassian.bamboo.collections.*;resolution:=optional,-->
+                <!--com.atlassian.bamboo.resultsummary.vcs.*;resolution:=optional,-->
+                <!--com.atlassian.bamboo.webwork.util.*;resolution:=optional,-->
+                <!--com.atlassian.bamboo.utils.*;resolution:=optional,-->
+                <!--com.atlassian.event.api.*;resolution:=optional,-->
+                <!--com.atlassian.bandana.impl.*;resolution:=optional,-->
+                <!--com.atlassian.applinks.api.*;resolution:=optional,-->
+                <!--com.atlassian.sal.*;resolution:=optional,-->
+                <!--com.atlassian.META.spring.container.*;resolution:=optional,-->
+                <!--com.atlassian.util.concurrent.*;resolution:=optional,-->
+                <!--com.opensymphony.util.*;resolution:=optional,-->
+                <!--org.apache.http.auth.*;resolution:=optional,-->
+                <!--org.apache.log4j;resolution:=optional,-->
+                <!--org.apache.commons.beanutils.*;resolution:=optional,-->
+                <!--org.apache.commons.collections.*;resolution:=optional,-->
+                <!--org.apache.commons.commons-lang3.*;version="3.1",-->
+                <!--org.apache.commons.commons-io.*;version="1.3.2",-->
+                <!--org.apache.commons.configuration.*;resolution:=optional,-->
+                <!--org.apache.commons.io.*;resolution:=optional,-->
+                <!--org.apache.commons.logging.*;resolution:=optional,-->
+                <!--org.apache.commons.lang.*;resolution:=optional,-->
+                <!--org.slf4j.*;resolution:=optional,-->
+                <!--javax.crypto.*;resolution:=optional,-->
+                <!--javax.net.ssl.*;resolution:=optional,-->
+                <!--net.sf.json.*;resolution:="2.4",-->
+                <!--com.jcraft.jzlib.*;version="1.1.3",-->
+                <!--com.jcraft.jsch.*;version="0.1.51",-->
+                <!--org.eclipse.jgit.*;version="4.0.3.201509231615-r",-->
+                <!--com.sonymobile.tools.gerrit.*;version="2.5.0",-->
+                <!--com.houghtonassociates.bamboo.*,-->
+            <!--</Import-Package>-->
+    	<!--</bundle-instructions>-->
     </plugin-info>
 
     <!-- internationalize your plugin -->
@@ -95,15 +97,6 @@
       <context>atl.general</context>
     </web-resource>
 
-	<component-import key="i18nResolver" interface="com.atlassian.sal.api.message.I18nResolver"/>
-	<component-import key="branchIntegrationHelper" interface="com.atlassian.bamboo.plan.branch.BranchIntegrationHelper" />
-    <component-import key="encryptionService" interface="com.atlassian.bamboo.security.EncryptionService" />
-    <component-import key="repositoryDefinitionManager" interface="com.atlassian.bamboo.repository.RepositoryDefinitionManager" />
-    <component-import key="decoratingAggregatedChainErrorAccessor" interface="com.atlassian.bamboo.logger.ErrorAccessor" />
-    <component-import key="projectManager" interface="com.atlassian.bamboo.project.ProjectManager"/>
-    <component-import key="deploymentProjectService" interface="com.atlassian.bamboo.deployments.projects.service.DeploymentProjectService"/>
-    <component-import key="commentService" interface="com.atlassian.bamboo.comment.CommentService"/>
-    
     <repository key="gerrit" name="Gerrit Repository"
                      class="com.houghtonassociates.bamboo.plugins.GerritRepositoryAdapter">
       <description>A Gerrit Interface Repository</description>
@@ -132,12 +125,12 @@
     </web-panel> -->
 
     <!-- P O S T   B U I L D   P R O C E S S O R S -->
-    <buildProcessor key="gerritBuildProcessor" name="Gerrit Verification Processor"
+    <buildProcessorServer key="gerritBuildProcessor" name="Gerrit Verification Processor"
                     class="com.houghtonassociates.bamboo.plugins.processor.GerritProcessor">
     	<description>A Build Processor to execute the Gerrit Verification for the Build Plan.</description>
         <resource type="freemarker" name="edit" location="editGerritBuildProcessor.ftl" />
         <resource type="freemarker" name="view" location="viewGerritBuildProcessor.ftl" />
-    </buildProcessor>
+    </buildProcessorServer>
 
     <webRepositoryViewer key="gitwebRepositoryViewer" name="GitWeb"
                        class="com.houghtonassociates.bamboo.plugins.view.GitWebRepositoryViewer">
@@ -145,4 +138,34 @@
     <resource type="freemarker" name="edit" location="editGitwebRepositoryViewer.ftl"/>
     <resource type="freemarker" name="view" location="viewGitwebRepositoryViewer.ftl"/>
   </webRepositoryViewer>
+
+    <vcsType key="gerritv2" name="Gerrit" class="com.houghtonassociates.bamboo.plugins.repo.v2.GerritRepositoryManager">
+        <description>A Gerrit repository</description>
+        <uniqueRevisionIds>true</uniqueRevisionIds>
+        <resource type="download" name="icon" location="gerriticon_52.png"/>
+        <serverConfigurator class="com.houghtonassociates.bamboo.plugins.repo.v2.configurator.GerritServerConfigurator"/>
+        <branchConfigurator class="com.houghtonassociates.bamboo.plugins.repo.v2.configurator.GerritBranchConfigurator"/>
+        <changeDetectionConfigurator class="com.houghtonassociates.bamboo.plugins.repo.v2.configurator.DefaultChangeDetectionOptionsConfigurator"/>
+        <changeDetector class="com.houghtonassociates.bamboo.plugins.repo.v2.GerritChangeDetector"/>
+        <branchDetector class="com.houghtonassociates.bamboo.plugins.repo.v2.GerritBranchDetector"/>
+        <connectionTester class="com.houghtonassociates.bamboo.plugins.repo.v2.GerritConnectionTester"/>
+        <variableGenerator class="com.houghtonassociates.bamboo.plugins.repo.v2.GerritVariableGenerator"/>
+        <mavenPomAccessor class="com.atlassian.bamboo.plugins.git.v2.configurator.GitMavenPomAccessor"/>
+        <exporter class="com.houghtonassociates.bamboo.plugins.repo.v2.exporter.GerritConfigurationExporter"/>
+
+        <resource type="freemarker" name="editServer" location="/templates/v2/gerritServerEdit.ftl"/>
+        <resource type="freemarker" name="viewServer" location="/templates/v2/gerritServerView.ftl"/>
+        <resource type="freemarker" name="editBranch" location="/templates/v2/gerritBranchEdit.ftl"/>
+        <resource type="freemarker" name="viewBranch" location="/templates/v2/gerritBranchView.ftl"/>
+        <resource type="freemarker" name="editAdvancedServerOptions" location="/templates/v2/gerritEditAdvancedServerOptions.ftl"/>
+        <resource type="freemarker" name="viewAdvancedServerOptions" location="/templates/v2/gerritViewAdvancedServerOptions.ftl"/>
+        <resource type="freemarker" name="branchIntegrationEdit" location="/templates/v2/branchIntegrationEdit.ftl"/>
+    </vcsType>
+
+    <repository2VcsTypeConverter key="gerritConverter" name="Gerrit converter" class="com.houghtonassociates.bamboo.plugins.repo.v2.converter.GerritConfigurationConverter"/>
+
+    <component-import key="i18nResolver" interface="com.atlassian.sal.api.message.I18nResolver" />
+    <component-import key="templateRenderer" interface="com.atlassian.bamboo.template.TemplateRenderer" />
+    <component-import key="changeDetectionManager" interface="com.atlassian.bamboo.v2.trigger.ChangeDetectionManager" />
+
 </atlassian-plugin>

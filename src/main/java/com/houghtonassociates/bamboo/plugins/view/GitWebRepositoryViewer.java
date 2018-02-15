@@ -15,17 +15,6 @@
  */
 package com.houghtonassociates.bamboo.plugins.view;
 
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.Map;
-
-import org.apache.commons.configuration.HierarchicalConfiguration;
-import org.apache.commons.lang.StringUtils;
-import org.apache.log4j.Logger;
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
-
 import com.atlassian.bamboo.collections.ActionParametersMap;
 import com.atlassian.bamboo.commit.Commit;
 import com.atlassian.bamboo.commit.CommitFile;
@@ -42,6 +31,16 @@ import com.atlassian.bamboo.webrepository.CommitUrlProvider;
 import com.atlassian.bamboo.ww2.actions.build.admin.create.BuildConfiguration;
 import com.houghtonassociates.bamboo.plugins.GerritRepositoryAdapter;
 import com.houghtonassociates.bamboo.plugins.dao.GerritChangeVO;
+import org.apache.commons.configuration.HierarchicalConfiguration;
+import org.apache.commons.lang.StringUtils;
+import org.apache.log4j.Logger;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * GitWeb Repository Browser Integration.
@@ -49,8 +48,7 @@ import com.houghtonassociates.bamboo.plugins.dao.GerritChangeVO;
  * @author Jason Huntley
  * 
  */
-public class GitWebRepositoryViewer extends AbstractWebRepositoryViewer
-    implements CommitUrlProvider {
+public class GitWebRepositoryViewer extends AbstractWebRepositoryViewer implements CommitUrlProvider {
 
     private static final String FULL_COMMIT_VIEW_TEMPLATE =
         "gitwebViewOfCommits.ftl";
@@ -121,8 +119,7 @@ public class GitWebRepositoryViewer extends AbstractWebRepositoryViewer
 
     @NotNull
     @Override
-    public ErrorCollection
-                    validate(@NotNull BuildConfiguration buildConfiguration) {
+    public ErrorCollection validate(@NotNull BuildConfiguration buildConfiguration) {
         ErrorCollection errorCollection = super.validate(buildConfiguration);
 
         String webRepositoryUrl =
@@ -164,8 +161,7 @@ public class GitWebRepositoryViewer extends AbstractWebRepositoryViewer
     private String resolveIfChangeID(RepositoryData rd, String id) {
         String newRevision = id;
         if (rd.getRepository() instanceof GerritRepositoryAdapter) {
-            GerritRepositoryAdapter gra =
-                (GerritRepositoryAdapter) rd.getRepository();
+            GerritRepositoryAdapter gra = (GerritRepositoryAdapter) rd.getRepository();
 
             GerritChangeVO change = null;
 
@@ -248,7 +244,8 @@ public class GitWebRepositoryViewer extends AbstractWebRepositoryViewer
             substitutedWebUrl = webRepositoryUrl;
         }
 
-        result.append(UrlUtils.appendSlashIfDoesntExist(substitutedWebUrl));
+        // Fix for https://github.com/onepremise/gReview/issues/33
+        result.append(substitutedWebUrl);
 
         String substitutedRepoName =
             customVariableContext.substituteString(webRepositoryRepoName);
@@ -263,8 +260,7 @@ public class GitWebRepositoryViewer extends AbstractWebRepositoryViewer
         return result.toString();
     }
 
-    public String
-                    getHtmlForCommitsFull(ResultsSummary resultsSummary,
+    public String getHtmlForCommitsFull(ResultsSummary resultsSummary,
                                           RepositoryChangeset repositoryChangeset,
                                           RepositoryDefinition repositoryData) {
         final Map<String, Object> context = new HashMap<String, Object>();
@@ -277,8 +273,7 @@ public class GitWebRepositoryViewer extends AbstractWebRepositoryViewer
         return templateRenderer.render(FULL_COMMIT_VIEW_TEMPLATE, context);
     }
 
-    public String
-                    getHtmlForCommitsSummary(ResultsSummary resultsSummary,
+    public String getHtmlForCommitsSummary(ResultsSummary resultsSummary,
                                              RepositoryChangeset repositoryChangeset,
                                              RepositoryDefinition repositoryData,
                                              int maxChanges) {
@@ -296,8 +291,7 @@ public class GitWebRepositoryViewer extends AbstractWebRepositoryViewer
         return result;
     }
 
-    public String
-                    getHtmlForCommitsSummary(ResultsSummary resultsSummary,
+    public String getHtmlForCommitsSummary(ResultsSummary resultsSummary,
                                              RepositoryChangeset repositoryChangeset,
                                              RepositoryDefinition repositoryDefinition) {
         final Map<String, Object> context = new HashMap<String, Object>();
@@ -319,8 +313,7 @@ public class GitWebRepositoryViewer extends AbstractWebRepositoryViewer
      * @param repositoryData
      * @return
      */
-    public Map<Commit, String>
-                    getWebRepositoryUrlForCommits(Collection<Commit> commits,
+    public Map<Commit, String> getWebRepositoryUrlForCommits(Collection<Commit> commits,
                                                   RepositoryData repositoryData) {
         Map<Commit, String> commitsToUrls = new HashMap<Commit, String>();
 
@@ -357,8 +350,7 @@ public class GitWebRepositoryViewer extends AbstractWebRepositoryViewer
      * @param repositoryData
      * @return
      */
-    public Map<String, String>
-                    getWebRepositoryUrlForRevisions(Collection<String> revisions,
+    public Map<String, String> getWebRepositoryUrlForRevisions(Collection<String> revisions,
                                                     RepositoryData repositoryData) {
         Map<String, String> commitsToUrls = new HashMap<String, String>();
 
@@ -405,13 +397,12 @@ public class GitWebRepositoryViewer extends AbstractWebRepositoryViewer
     /**
      * Pulls back gitweb file urls for each file listed under changes.
      * 
-     * @param revisions
+     * @param file
      * @param repositoryData
      * @return
      */
     @Nullable
-    public String getWebRepositoryUrlForFile(@NotNull CommitFile file,
-                                             RepositoryData repositoryData) {
+    public String getWebRepositoryUrlForFile(@NotNull CommitFile file, RepositoryData repositoryData) {
         StringBuilder result = new StringBuilder();
         String revision = file.getRevision();
 
@@ -485,8 +476,7 @@ public class GitWebRepositoryViewer extends AbstractWebRepositoryViewer
     }
 
     public void setWebRepositoryUrl(@Nullable String webRepositoryUrl) {
-        this.webRepositoryUrl =
-            webRepositoryUrl == null ? null : webRepositoryUrl.trim();
+        this.webRepositoryUrl = webRepositoryUrl == null ? null : webRepositoryUrl.trim();
     }
 
     public String getWebRepositoryPath() {
@@ -494,30 +484,25 @@ public class GitWebRepositoryViewer extends AbstractWebRepositoryViewer
     }
 
     public void setWebRepositoryPath(@Nullable String webRepositoryPath) {
-        this.webRepositoryPath =
-            webRepositoryPath == null ? null : webRepositoryPath.trim();
+        this.webRepositoryPath = webRepositoryPath == null ? null : webRepositoryPath.trim();
     }
 
     public String getWebRepositoryRepoName() {
         return webRepositoryRepoName;
     }
 
-    public void
-                    setWebRepositoryRepoName(@Nullable String webRepositoryRepoName) {
-        this.webRepositoryRepoName =
-            webRepositoryRepoName == null ? null : webRepositoryRepoName.trim();
+    public void setWebRepositoryRepoName(@Nullable String webRepositoryRepoName) {
+        this.webRepositoryRepoName = webRepositoryRepoName == null ? null : webRepositoryRepoName.trim();
     }
 
-    public void
-                    setCustomVariableContext(final CustomVariableContext customVariableContext) {
+    public void setCustomVariableContext(final CustomVariableContext customVariableContext) {
         this.customVariableContext = customVariableContext;
     }
 
     @Override
-    public String
-                    getHtmlForCommitsFull(@NotNull final ResultsSummary resultsSummary,
-                                          @NotNull final RepositoryChangeset repositoryChangeset,
-                                          @NotNull final RepositoryData repositoryData) {
+    public String getHtmlForCommitsFull(@NotNull final ResultsSummary resultsSummary,
+                                        @NotNull final RepositoryChangeset repositoryChangeset,
+                                        @NotNull final RepositoryData repositoryData) {
         final Map<String, Object> context = new HashMap<String, Object>();
         context.put("buildResultsSummary", resultsSummary);
         context.put("repositoryChangeset", repositoryChangeset);
@@ -528,11 +513,10 @@ public class GitWebRepositoryViewer extends AbstractWebRepositoryViewer
     }
 
     @Override
-    public String
-                    getHtmlForCommitsSummary(@NotNull final ResultsSummary resultsSummary,
-                                             @NotNull final RepositoryChangeset repositoryChangeset,
-                                             @NotNull final RepositoryData repositoryData,
-                                             final int maxChanges) {
+    public String getHtmlForCommitsSummary(@NotNull final ResultsSummary resultsSummary,
+                                           @NotNull final RepositoryChangeset repositoryChangeset,
+                                           @NotNull final RepositoryData repositoryData,
+                                           final int maxChanges) {
         final Map<String, Object> context = new HashMap<String, Object>();
         context.put("buildResultsSummary", resultsSummary);
         context.put("repositoryChangeset", repositoryChangeset);

@@ -6,17 +6,16 @@
  */
 package com.houghtonassociates.bamboo.plugins.dao;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Set;
-
-import org.apache.log4j.Logger;
-
 import com.sonymobile.tools.gerrit.gerritevents.GerritEventListener;
 import com.sonymobile.tools.gerrit.gerritevents.GerritHandler;
 import com.sonymobile.tools.gerrit.gerritevents.dto.GerritEvent;
 import com.sonymobile.tools.gerrit.gerritevents.dto.GerritEventType;
 import com.sonymobile.tools.gerrit.gerritevents.dto.events.PatchsetCreated;
+import org.apache.log4j.Logger;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
 
 /**
  * @author jhuntley
@@ -34,11 +33,8 @@ public class GerritMonitor {
     public GerritHandler initialize(GerritService s) {
         if (gHandler == null) {
             this.service = s;
-
             GerritConfig gc = s.getConfig();
-
-            gHandler =
-                new GerritHandler(NUM_WORKER_THREADS);
+            gHandler = new GerritHandler(NUM_WORKER_THREADS);
 
             // gHandler.addListener(this);
             gHandler.addListener(new GerritEventListener() {

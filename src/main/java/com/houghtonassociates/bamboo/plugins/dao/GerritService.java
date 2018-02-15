@@ -15,34 +15,11 @@
  */
 package com.houghtonassociates.bamboo.plugins.dao;
 
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.IOException;
-import java.io.StringReader;
-import java.text.ParseException;
-import java.text.SimpleDateFormat;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.Date;
-import java.util.HashSet;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Locale;
-import java.util.Scanner;
-import java.util.Set;
-import java.util.TreeSet;
-import java.util.concurrent.ConcurrentSkipListSet;
-
-import net.sf.json.JSONException;
-import net.sf.json.JSONObject;
-
-import org.apache.commons.io.FileUtils;
-import org.apache.commons.lang3.ArrayUtils;
-import org.apache.http.auth.Credentials;
-import org.apache.log4j.Logger;
-import org.eclipse.jgit.transport.PushResult;
-
+import com.atlassian.bamboo.author.AuthorImpl;
+import com.atlassian.bamboo.commit.CommitContext;
+import com.atlassian.bamboo.commit.CommitImpl;
+import com.atlassian.bamboo.plan.branch.VcsBranch;
+import com.atlassian.bamboo.plan.branch.VcsBranchImpl;
 import com.atlassian.bamboo.repository.RepositoryException;
 import com.houghtonassociates.bamboo.plugins.dao.GerritChangeVO.Approval;
 import com.houghtonassociates.bamboo.plugins.dao.GerritChangeVO.FileSet;
@@ -58,11 +35,32 @@ import com.sonymobile.tools.gerrit.gerritevents.ssh.SshException;
 import com.sonymobile.tools.gerrit.gerritevents.watchdog.WatchTimeExceptionData;
 import com.sonymobile.tools.gerrit.gerritevents.watchdog.WatchTimeExceptionData.TimeSpan;
 import com.sonymobile.tools.gerrit.gerritevents.workers.cmd.AbstractSendCommandJob;
+import net.sf.json.JSONException;
+import net.sf.json.JSONObject;
+import org.apache.commons.io.FileUtils;
+import org.apache.commons.lang3.ArrayUtils;
+import org.apache.http.auth.Credentials;
+import org.apache.log4j.Logger;
+import org.eclipse.jgit.api.MergeResult;
+import org.eclipse.jgit.api.Status;
+import org.eclipse.jgit.lib.*;
+import org.eclipse.jgit.revwalk.RevCommit;
+import org.eclipse.jgit.revwalk.RevWalk;
+import org.eclipse.jgit.storage.file.FileRepositoryBuilder;
+import org.eclipse.jgit.transport.FetchResult;
+import org.eclipse.jgit.transport.PushResult;
+import org.jetbrains.annotations.NotNull;
 
- /* 
-  * Facade for working with ssh, gerrit-events, parsing JSON results, and 
-  * Gerrit related data.
-  */
+import java.io.*;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.*;
+import java.util.concurrent.ConcurrentSkipListSet;
+
+/*
+ * Facade for working with ssh, gerrit-events, parsing JSON results, and
+ * Gerrit related data.
+ */
 public class GerritService {
 
     public static final String SYSTEM_DIRECTORY = "gerrit";
@@ -96,9 +94,9 @@ public class GerritService {
 
         if ((gc.getUserEmail() == null) || gc.getUserEmail().isEmpty()) {
             GerritUserVO user = getGerritSystemUser();
-
-            if (user != null)
+            if (user != null) {
                 gc.setUserEmail(user.getEmail());
+            }
         }
 
         if (monitor == null) {
@@ -126,6 +124,15 @@ public class GerritService {
         return p;
     }
 
+    public String getHead(GerritConfig substitutedAccessData, File workspace) throws RepositoryException {
+        JGitRepository jgitRepo = new JGitRepository();
+        jgitRepo.setAccessData(substitutedAccessData);
+        jgitRepo.open(workspace);
+        String ref = jgitRepo.getRef();
+        jgitRepo.close();
+        return ref;
+    }
+
     public void addListener(GerritProcessListener l) {
         monitor.addGerritListener(l);
     }
@@ -138,20 +145,16 @@ public class GerritService {
         SshConnection sshConnection = null;
 
         try {
-            sshConnection =
-                SshConnectionFactory.getConnection(gc.getHost(), gc.getPort(),
-                    gc.getAuth());
+            sshConnection = SshConnectionFactory.getConnection(gc.getHost(), gc.getPort(), gc.getAuth());
         } catch (IOException e) {
             if(sshConnection != null) {
               sshConnection.disconnect();
             }
-            throw new RepositoryException(
-                "Failed to establish connection to Gerrit!");
+            throw new RepositoryException("Failed to establish connection to Gerrit!");
         }
 
         if (!sshConnection.isConnected()) {
-            throw new RepositoryException(
-                "Failed to establish connection to Gerrit!");
+            throw new RepositoryException("Failed to establish connection to Gerrit!");
         } else {
             sshConnection.disconnect();
         }
@@ -167,6 +170,28 @@ public class GerritService {
         public void run() {
 
         }
+    }
+
+    @NotNull
+    public String commit(@NotNull final File file, @NotNull final String commitMessage, String committerName, String committerEmail) throws RepositoryException {
+        JGitRepository jgitRepo = new JGitRepository();
+        jgitRepo.setAccessData(gc);
+        jgitRepo.open(file, true);
+        jgitRepo.openSSHTransport();
+        jgitRepo.add(".");
+        RevCommit c = jgitRepo.commit(commitMessage, committerName, committerEmail);
+        jgitRepo.close();
+        return c.name();
+    }
+
+    @NotNull
+    public void pushRevision(@NotNull final File file, @NotNull final String commitRef) throws RepositoryException {
+        JGitRepository jgitRepo = new JGitRepository();
+        jgitRepo.setAccessData(gc);
+        jgitRepo.open(file, true);
+        jgitRepo.openSSHTransport();
+        jgitRepo.push(file, commitRef);
+        jgitRepo.close();
     }
 
     private void grantDatabaseAccess() throws RepositoryException {
@@ -189,13 +214,9 @@ public class GerritService {
         synchronized (GerritService.class) {
             try {
                 jgitRepo.setAccessData(gc);
-
                 jgitRepo.open(filePath, true);
-
                 jgitRepo.openSSHTransport(url);
-
                 jgitRepo.fetch(targetRevision);
-
                 jgitRepo.checkout(targetRevision);
 
                 StringBuilder content = new StringBuilder();
@@ -212,8 +233,7 @@ public class GerritService {
                     content.append(line).append("\n");
 
                     if (line.contains("[capability]")) {
-                        content
-                            .append("\taccessDatabase = group Administrators\n");
+                        content.append("\taccessDatabase = group Administrators\n");
                     }
                 }
 
@@ -230,9 +250,7 @@ public class GerritService {
 
                 jgitRepo.add("project.config");
 
-                PushResult r =
-                    jgitRepo.commitPush("Grant Database Access.",
-                        targetRevision);
+                PushResult r = jgitRepo.commitPush("Grant Database Access.",targetRevision);
 
                 if (r.getMessages().contains("ERROR")) {
                     throw new RepositoryException(r.getMessages());
@@ -274,13 +292,9 @@ public class GerritService {
         synchronized (GerritService.class) {
             try {
                 jgitRepo.setAccessData(gc);
-
                 jgitRepo.open(filePath, true);
-
                 jgitRepo.openSSHTransport(url);
-
                 jgitRepo.fetch(targetRevision);
-
                 jgitRepo.checkout(targetRevision);
 
                 StringBuilder content = new StringBuilder();
@@ -321,9 +335,7 @@ public class GerritService {
 
                 jgitRepo.add("project.config");
 
-                PushResult r =
-                    jgitRepo.commitPush("Enabled verification label.",
-                        targetRevision);
+                PushResult r = jgitRepo.commitPush("Enabled verification label.", targetRevision);
 
                 if (r.getMessages().contains("ERROR")) {
                     throw new RepositoryException(r.getMessages());
@@ -356,12 +368,12 @@ public class GerritService {
         if (pass.booleanValue()) {
             command =
                 String.format(
-                    "gerrit review --message '%s' --verified +1 %s,%s",
+                    "gerrit review --message '%s' --label verified=+1 %s,%s",
                     message, changeNumber.intValue(), patchNumber.intValue());
         } else {
             command =
                 String.format(
-                    "gerrit review --message '%s' --verified -1 %s,%s",
+                    "gerrit review --message '%s' --label verified=-1 %s,%s",
                     message, changeNumber.intValue(), patchNumber.intValue());
         }
 
@@ -471,14 +483,9 @@ public class GerritService {
 
     public List<String> getProjects() throws RepositoryException {
         List<String> listProjects = new ArrayList<String>();
-        String projects =
-            getGerritCmdProcessor().sendCommandStr("gerrit ls-projects");
-
-        BufferedReader bufReader =
-            new BufferedReader(new StringReader(projects));
-
+        String projects = getGerritCmdProcessor().sendCommandStr("gerrit ls-projects");
+        BufferedReader bufReader = new BufferedReader(new StringReader(projects != null ? projects : ""));
         String line = null;
-
         try {
             while ((line = bufReader.readLine()) != null) {
                 listProjects.add(line);
@@ -583,8 +590,7 @@ public class GerritService {
      * @return
      * @throws RepositoryException
      */
-    public List<JSONObject>
-                    runGerritSQL(String query) throws RepositoryException {
+    public List<JSONObject> runGerritSQL(String query) throws RepositoryException {
         List<JSONObject> jsonObjects = null;
 
         log.debug("Gerrit query: " + query);
@@ -622,15 +628,13 @@ public class GerritService {
         return jsonObjects;
     }
 
-    public List<JSONObject>
-                    runGerritQuery(String query) throws RepositoryException {
+    public List<JSONObject> runGerritQuery(String query) throws RepositoryException {
         List<JSONObject> jsonObjects = null;
 
         log.debug("Gerrit query: " + query);
 
         try {
-            jsonObjects =
-                getGerritQueryHandler().queryJava(query, true, true, true);
+            jsonObjects = getGerritQueryHandler().queryJava(query, true, true, true);
         } catch (SshException e) {
             throw new RepositoryException("SSH connection error", e);
         } catch (IOException e) {
@@ -662,44 +666,34 @@ public class GerritService {
 
     public GerritChangeVO getLastChange() throws RepositoryException {
         log.debug("getLastChange()...");
-
         Set<GerritChangeVO> changes = getGerritChangeInfo();
-
-        TreeSet<GerritChangeVO> treeSet =
-            new TreeSet<GerritChangeVO>(new SortByLastUpdate());
+        TreeSet<GerritChangeVO> treeSet = new TreeSet<GerritChangeVO>(new SortByLastUpdate());
         treeSet.addAll(changes);
 
-        if (treeSet.size() > 0)
+        if (treeSet.size() > 0) {
             return treeSet.first();
+        }
 
         return null;
     }
 
     public GerritChangeVO getLastUnverifiedChange() throws RepositoryException {
         log.debug("getLastUnverifiedChange()...");
-
         Set<GerritChangeVO> changes = getGerritChangeInfo();
-
-        TreeSet<GerritChangeVO> treeSet =
-            new TreeSet<GerritChangeVO>(new SortByUnVerifiedLastUpdate());
+        TreeSet<GerritChangeVO> treeSet = new TreeSet<GerritChangeVO>(new SortByUnVerifiedLastUpdate());
         treeSet.addAll(changes);
 
-        if ((treeSet.size() > 0)
-            && (treeSet.first().getVerificationScore() == 0))
+        if ((treeSet.size() > 0) && (treeSet.first().getVerificationScore() == 0)) {
             return treeSet.first();
+        }
 
         return null;
     }
 
-    public Set<GerritChangeVO>
-                    getLastUnverifiedChanges() throws RepositoryException {
+    public Set<GerritChangeVO> getLastUnverifiedChanges() throws RepositoryException {
         log.debug("getLastUnverifiedChange()...");
-
         Set<GerritChangeVO> changes = getGerritChangeInfo();
-
-        ConcurrentSkipListSet<GerritChangeVO> filtedChanges =
-            new ConcurrentSkipListSet<GerritChangeVO>(
-                new SortByUnVerifiedLastUpdate());
+        ConcurrentSkipListSet<GerritChangeVO> filtedChanges = new ConcurrentSkipListSet<GerritChangeVO>(new SortByUnVerifiedLastUpdate());
         filtedChanges.addAll(changes);
 
         if ((filtedChanges.size() > 0)) {
@@ -713,82 +707,66 @@ public class GerritService {
         return filtedChanges;
     }
 
-    public GerritChangeVO
-                    getLastChange(String project) throws RepositoryException {
+    public GerritChangeVO getLastChange(String project) throws RepositoryException {
         log.debug(String.format("getLastChange(project=%s)...", project));
+        Set<GerritChangeVO> changes = getGerritChangeInfo(project);
+        TreeSet<GerritChangeVO> treeSet = new TreeSet<GerritChangeVO>(new SortByLastUpdate());
+        treeSet.addAll(changes);
+
+        if (treeSet.size() > 0) {
+            return treeSet.first();
+        }
+
+        return null;
+    }
+
+    public GerritChangeVO getLastUnverifiedChange(String project) throws RepositoryException {
+        log.debug(String.format("getLastUnverifiedChange(project=%s)...", project));
 
         Set<GerritChangeVO> changes = getGerritChangeInfo(project);
 
-        TreeSet<GerritChangeVO> treeSet =
-            new TreeSet<GerritChangeVO>(new SortByLastUpdate());
+        TreeSet<GerritChangeVO> treeSet = new TreeSet<GerritChangeVO>(new SortByUnVerifiedLastUpdate());
         treeSet.addAll(changes);
 
-        if (treeSet.size() > 0)
+        if ((treeSet.size() > 0) && (treeSet.first().getVerificationScore() == 0)) {
             return treeSet.first();
+        }
 
         return null;
     }
 
-    public GerritChangeVO
-                    getLastUnverifiedChange(String project) throws RepositoryException {
-        log.debug(String.format("getLastUnverifiedChange(project=%s)...",
-            project));
-
-        Set<GerritChangeVO> changes = getGerritChangeInfo(project);
-
-        TreeSet<GerritChangeVO> treeSet =
-            new TreeSet<GerritChangeVO>(new SortByUnVerifiedLastUpdate());
-        treeSet.addAll(changes);
-
-        if ((treeSet.size() > 0)
-            && (treeSet.first().getVerificationScore() == 0))
-            return treeSet.first();
-
-        return null;
-    }
-
-    public GerritChangeVO
-                    getLastChange(String project, String branch) throws RepositoryException {
+    public GerritChangeVO getLastChange(String project, String branch) throws RepositoryException {
         log.debug(String.format("getLastChange(project=%s)...", project));
-
         Set<GerritChangeVO> changes = getGerritChangeInfo(project, branch);
-
-        TreeSet<GerritChangeVO> treeSet =
-            new TreeSet<GerritChangeVO>(new SortByLastUpdate());
+        TreeSet<GerritChangeVO> treeSet = new TreeSet<GerritChangeVO>(new SortByLastUpdate());
         treeSet.addAll(changes);
 
-        if (treeSet.size() > 0)
+        if (treeSet.size() > 0) {
             return treeSet.first();
+        }
 
         return null;
     }
 
-    public GerritChangeVO
-                    getLastUnverifiedChange(String project, String branch) throws RepositoryException {
-        log.debug(String.format("getLastUnverifiedChange(project=%s)...",
-            project));
+    public GerritChangeVO getLastUnverifiedChange(String project, String branch) throws RepositoryException {
+        log.debug(String.format("getLastUnverifiedChange(project=%s)...", project));
 
         Set<GerritChangeVO> changes = getGerritChangeInfo(project, branch);
 
-        TreeSet<GerritChangeVO> treeSet =
-            new TreeSet<GerritChangeVO>(new SortByUnVerifiedLastUpdate());
+        TreeSet<GerritChangeVO> treeSet = new TreeSet<GerritChangeVO>(new SortByUnVerifiedLastUpdate());
         treeSet.addAll(changes);
 
-        if ((treeSet.size() > 0)
-            && (treeSet.first().getVerificationScore() == 0))
+        if ((treeSet.size() > 0) && (treeSet.first().getVerificationScore() == 0)) {
             return treeSet.first();
+        }
 
         return null;
     }
 
-    public GerritChangeVO
-                    getChangeByID(String changeID) throws RepositoryException {
+    public GerritChangeVO getChangeByID(String changeID) throws RepositoryException {
         log.debug(String.format("getChangeByID(changeID=%s)...", changeID));
-
         List<JSONObject> jsonObjects = null;
-
         jsonObjects = runGerritQuery(String.format("change:%s", changeID));
-
         if (jsonObjects == null) {
             return null;
         }
@@ -796,14 +774,10 @@ public class GerritService {
         return this.transformChangeJSONObject(jsonObjects.get(0));
     }
 
-    public GerritChangeVO
-                    getChangeByRevision(String rev) throws RepositoryException {
+    public GerritChangeVO getChangeByRevision(String rev) throws RepositoryException {
         log.debug(String.format("getChangeByRevision(rev=%s)...", rev));
-
         List<JSONObject> jsonObjects = null;
-
         jsonObjects = runGerritQuery(String.format("commit:%s", rev));
-
         if (jsonObjects == null) {
             return null;
         }
@@ -833,8 +807,7 @@ public class GerritService {
         return results;
     }
 
-    public Set<GerritChangeVO>
-                    getGerritChangeInfo(String project) throws RepositoryException {
+    public Set<GerritChangeVO> getGerritChangeInfo(String project) throws RepositoryException {
         String strQuery = String.format("is:open project:%s", project);
 
         log.debug(String.format("getGerritChangeInfo(project=%s)...", project));
@@ -867,8 +840,7 @@ public class GerritService {
      * @return
      * @throws RepositoryException
      */
-    public Set<GerritChangeVO>
-                    getGerritChangeInfo(String project, String branch) throws RepositoryException {
+    public Set<GerritChangeVO> getGerritChangeInfo(String project, String branch) throws RepositoryException {
         String strQuery =
             String.format("is:open project:%s branch:%s", project, branch);
 
@@ -958,8 +930,129 @@ public class GerritService {
         return ext;
     }
 
-    private GerritUserVO
-                    transformUserJSONObject(JSONObject j) throws RepositoryException {
+    public MergeResult mergeWorkspaceWith(@NotNull final File file, @NotNull final String s) throws RepositoryException {
+        JGitRepository jgitRepo = new JGitRepository();
+        jgitRepo.setAccessData(gc);
+        jgitRepo.open(file);
+        jgitRepo.openSSHTransport();
+        jgitRepo.fetch("refs/heads/" + this.gc.getBranch().getName());
+        org.eclipse.jgit.api.MergeResult mr = jgitRepo.merge(s, false); // do not commit merge result
+        jgitRepo.close();
+        return mr;
+    }
+
+    public void fetch(@NotNull final File workingDir,
+                      @NotNull final String revisionKey) throws RepositoryException {
+        JGitRepository jgitRepo = new JGitRepository();
+        jgitRepo.setAccessData(gc);
+        jgitRepo.open(workingDir);
+        jgitRepo.openSSHTransport();
+        FetchResult result = jgitRepo.fetch(revisionKey);
+        jgitRepo.close();
+    }
+
+    public Status status (@NotNull final File workingDir) throws RepositoryException {
+        JGitRepository jgitRepo = new JGitRepository();
+        jgitRepo.setAccessData(gc);
+        jgitRepo.open(workingDir);
+        jgitRepo.openSSHTransport();
+        Status status = jgitRepo.status();
+        jgitRepo.close();
+        return status;
+    }
+
+    /**
+      * Copied from GerritRepositoryAdapter.getOpenBranches(String context)
+      **/
+    public List<VcsBranch> getOpenBranches(@NotNull final GerritConfig repositoryData, final File workingDir) throws RepositoryException {
+        List<VcsBranch> vcsBranches = new ArrayList<VcsBranch>();
+
+        JGitRepository jgitRepo = new JGitRepository();
+        jgitRepo.setAccessData(gc);
+        jgitRepo.open(workingDir);
+        jgitRepo.openSSHTransport();
+        Collection<Ref> branches = jgitRepo.lsRemoteBranches();
+        for (Ref b : branches) {
+            String strBranch = b.getName();
+            if (strBranch.contains("/")) {
+                strBranch = strBranch.substring(strBranch.lastIndexOf("/") + 1);
+            }
+
+            if (repositoryData.getBranch() != null && !repositoryData.getBranch().isEqualToBranchWith(strBranch)) {
+                vcsBranches.add(new VcsBranchImpl(strBranch));
+            }
+        }
+
+        jgitRepo.close();
+
+        return vcsBranches;
+    }
+
+    public String getRevision(File sourceDirectory, @NotNull final String revision) throws RepositoryException {
+        File gitDirectory = new File(sourceDirectory, Constants.DOT_GIT);
+        if (!gitDirectory.exists()) {
+            throw new RepositoryException(sourceDirectory + " does not exist");
+        }
+        Repository localRepository = null;
+        try {
+            localRepository = FileRepositoryBuilder.create(new File(sourceDirectory, Constants.DOT_GIT));
+            ObjectId objectId = localRepository.resolve(revision);
+            objectId = localRepository.hasObject(objectId) ? objectId : null;
+            if (objectId == null) {
+                throw new RepositoryException("JGit cannot resolve " + revision);
+            }
+
+            return objectId.getName();
+        } catch (IOException e) {
+            throw new RepositoryException("Gerrit cannot resolve " + revision + " revision in " + sourceDirectory, e);
+        } finally {
+            if (localRepository != null) {
+                localRepository.close();
+            }
+        }
+    }
+
+    public CommitContext getCommit(final File directory, final String targetRevision) throws RepositoryException {
+        Repository localRepository = null;
+        RevWalk revWalk = null;
+
+        try {
+            File gitDirectory = new File(directory, Constants.DOT_GIT);
+            localRepository = FileRepositoryBuilder.create(gitDirectory);
+            revWalk = new RevWalk(localRepository);
+
+            if (targetRevision != null) {
+                RevCommit jgitCommit = revWalk.parseCommit(localRepository.resolve(targetRevision));
+                CommitImpl commit = new CommitImpl();
+                commit.setComment(jgitCommit.getFullMessage());
+                commit.setAuthor(getAuthor(jgitCommit));
+                commit.setDate(jgitCommit.getAuthorIdent().getWhen());
+                commit.setChangeSetId(jgitCommit.getName());
+                return commit;
+            }
+        } catch (IOException e) {
+            throw new RepositoryException("Getting commit " + targetRevision + " from " + this.gc.getRepositoryUrl() + " failed", e);
+        } finally {
+            if (revWalk != null) {
+                revWalk.dispose();
+            }
+            if (localRepository != null) {
+                localRepository.close();
+            }
+        }
+
+        throw new RepositoryException("Could not find commit with revision " + targetRevision);
+    }
+
+    private AuthorImpl getAuthor(RevCommit commit) {
+        PersonIdent gitPerson = commit.getAuthorIdent();
+        if (gitPerson == null) {
+            return new AuthorImpl(AuthorImpl.UNKNOWN_AUTHOR);
+        }
+        return new AuthorImpl(String.format("%s <%s>", gitPerson.getName(), gitPerson.getEmailAddress()), null, gitPerson.getEmailAddress());
+    }
+
+    private GerritUserVO transformUserJSONObject(JSONObject j) throws RepositoryException {
         if (j == null) {
             throw new RepositoryException("No data to parse!");
         }

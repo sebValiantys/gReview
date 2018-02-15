@@ -6,26 +6,20 @@
  */
 package com.houghtonassociates.bamboo.plugins.dao;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.util.LinkedList;
-import java.util.List;
-
-import net.sf.json.JSONObject;
-import net.sf.json.JSONSerializer;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import com.sonymobile.tools.gerrit.gerritevents.GerritConnectionConfig;
-import com.sonymobile.tools.gerrit.gerritevents.GerritConnectionConfig2;
-import com.sonymobile.tools.gerrit.gerritevents.GerritDefaultValues;
-import com.sonymobile.tools.gerrit.gerritevents.GerritQueryException;
-import com.sonymobile.tools.gerrit.gerritevents.GerritQueryHandler;
+import com.sonymobile.tools.gerrit.gerritevents.*;
 import com.sonymobile.tools.gerrit.gerritevents.ssh.Authentication;
 import com.sonymobile.tools.gerrit.gerritevents.ssh.SshConnection;
 import com.sonymobile.tools.gerrit.gerritevents.ssh.SshConnectionFactory;
 import com.sonymobile.tools.gerrit.gerritevents.ssh.SshException;
+import net.sf.json.JSONObject;
+import net.sf.json.JSONSerializer;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.util.LinkedList;
+import java.util.List;
 
 public class GerritSQLHandler {
 

@@ -15,20 +15,17 @@
  */
 package com.houghtonassociates.bamboo.plugins.view;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-
 import com.atlassian.bamboo.build.Job;
 import com.atlassian.bamboo.chains.Chain;
 import com.atlassian.bamboo.plan.IncorrectPlanTypeException;
 import com.atlassian.bamboo.plan.Plan;
-import com.atlassian.bamboo.plan.PlanHelper;
 import com.atlassian.bamboo.plan.PlanManager;
-import com.atlassian.bamboo.repository.Repository;
 import com.atlassian.plugin.PluginParseException;
 import com.atlassian.plugin.web.Condition;
-import com.houghtonassociates.bamboo.plugins.GerritRepositoryAdapter;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 
 /**
  * @author Jason Huntley
@@ -50,11 +47,13 @@ public class ViewGerritResultsCondition implements Condition {
         Plan plan = planManager.getPlanByKey(buildKey);
         // final String sonarRuns = (String)
         // build.getBuildDefinition().getCustomConfiguration().get(SONAR_RUN);
-        Repository repo = PlanHelper.getDefaultRepository(plan);
 
-        if (repo instanceof GerritRepositoryAdapter) {
-            return true;
-        }
+        // FIXME
+//        Repository repo = PlanHelper.getDefaultRepository(plan);
+//
+//        if (repo instanceof GerritRepositoryAdapter) {
+//            return true;
+//        }
 
         return false;
     }

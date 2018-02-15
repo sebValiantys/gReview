@@ -1,12 +1,12 @@
 /**
  * Copyright 2012 Houghton Associates
- * 
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  * http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -14,15 +14,6 @@
  * limitations under the License.
  */
 package com.houghtonassociates.bamboo.plugins.view;
-
-import java.io.File;
-import java.util.List;
-import java.util.Map;
-import java.util.NoSuchElementException;
-
-import org.apache.commons.lang3.math.NumberUtils;
-import org.apache.log4j.Logger;
-import org.jetbrains.annotations.Nullable;
 
 import com.atlassian.bamboo.build.ChainResultsAction;
 import com.atlassian.bamboo.build.Job;
@@ -36,40 +27,45 @@ import com.atlassian.bamboo.comment.CommentService;
 import com.atlassian.bamboo.deployments.projects.DeploymentProjectStatusForResultSummary;
 import com.atlassian.bamboo.deployments.projects.service.DeploymentProjectService;
 import com.atlassian.bamboo.filter.Pager;
-import com.atlassian.bamboo.plan.PlanHelper;
 import com.atlassian.bamboo.plan.PlanKeys;
 import com.atlassian.bamboo.plan.PlanResultKey;
 import com.atlassian.bamboo.plan.StageIdentifier;
-import com.atlassian.bamboo.repository.Repository;
 import com.atlassian.bamboo.repository.RepositoryException;
 import com.atlassian.bamboo.resultsummary.BuildResultsSummary;
 import com.atlassian.bamboo.resultsummary.ResultsSummary;
 import com.atlassian.bamboo.resultsummary.tests.FilteredTestResults;
 import com.atlassian.bamboo.resultsummary.tests.TestClassResultDescriptor;
 import com.atlassian.bamboo.resultsummary.vcs.RepositoryChangeset;
-import com.atlassian.bamboo.utils.BambooPredicates;
 import com.atlassian.bamboo.v2.build.agent.BuildAgent;
+import com.atlassian.bamboo.vcs.configuration.VcsRepositoryData;
 import com.atlassian.bamboo.ww2.aware.permissions.PlanReadSecurityAware;
+import com.google.common.base.Predicate;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.houghtonassociates.bamboo.plugins.GerritRepositoryAdapter;
 import com.houghtonassociates.bamboo.plugins.dao.GerritChangeVO;
 import com.houghtonassociates.bamboo.plugins.dao.GerritService;
+import com.houghtonassociates.bamboo.plugins.repo.v2.GerritConstants;
+import org.apache.commons.lang3.math.NumberUtils;
+import org.apache.log4j.Logger;
+import org.jetbrains.annotations.Nullable;
+import org.springframework.beans.factory.annotation.Autowired;
+
+import java.io.File;
+import java.util.List;
+import java.util.Map;
+import java.util.NoSuchElementException;
 
 /**
  * @author Jason Huntley
- * 
  */
 public class ViewGerritChainResultsAction extends ChainResultsAction implements PlanReadSecurityAware {
 
     private static final long serialVersionUID = 1L;
     private GerritChangeVO changeVO = null;
     private GerritService gerritService = null;
-    private static final Logger log = Logger
-        .getLogger(ViewGerritChainResultsAction.class);
-    private static final String GERRIT_REPOSITORY_PLUGIN_KEY =
-        "com.houghtonassociates.bamboo.plugins.gReview:gerrit";
-    
+    private static final Logger log = Logger.getLogger(ViewGerritChainResultsAction.class);
+
     // ------------------------------------------------------------------------------------------------------- Constants
     private static final int DEFAULT_DISPLAY_LINES = 25;
     private static final String BAMBOO_MAX_DISPLAY_LINES = "BAMBOO-MAX-DISPLAY-LINES";
@@ -85,7 +81,9 @@ public class ViewGerritChainResultsAction extends ChainResultsAction implements 
 
     // ---------------------------------------------------------------------------------------------------- Dependencies
 
+    @Autowired
     private DeploymentProjectService deploymentProjectService;
+    @Autowired
     private CommentService commentService;
 
     public ViewGerritChainResultsAction() {
@@ -93,7 +91,7 @@ public class ViewGerritChainResultsAction extends ChainResultsAction implements 
 
         changeVO = new GerritChangeVO();
     }
-    
+
     // ---------------------------------------------------------------------------------------------------- Constructors
     // ----------------------------------------------------------------------------------------------- Interface Methods
     // -------------------------------------------------------------------------------------------------- Action Methods
@@ -101,19 +99,17 @@ public class ViewGerritChainResultsAction extends ChainResultsAction implements 
     public Job getJobForKey(String planKey) {
         return planManager.getPlanByKey(planKey, Job.class);
     }
-    
+
     public void updateChangeVO() throws RepositoryException {
         final String revision = this.getRevision();
 
         if (revision == null) {
             changeVO = new GerritChangeVO();
         } else {
-            final GerritChangeVO change =
-                getGerritService().getChangeByRevision(revision);
+            final GerritChangeVO change = getGerritService().getChangeByRevision(revision);
 
             if (change == null) {
-                log.error(this.getTextProvider().getText(
-                    "repository.gerrit.messages.error.retrieve"));
+                log.error(this.getTextProvider().getText("repository.gerrit.messages.error.retrieve"));
                 changeVO = new GerritChangeVO();
             } else {
                 changeVO = change;
@@ -122,9 +118,9 @@ public class ViewGerritChainResultsAction extends ChainResultsAction implements 
     }
 
     @Override
-    public String doExecute() throws Exception {
+    public String execute() throws Exception {
     	updateChangeVO();
-        
+
         if (getImmutableChain() == null || getImmutableChain().isMarkedForDeletion()) {
             addActionError(getText("chain.error.noChain", Lists.newArrayList(getPlanKey())));
             return ERROR;
@@ -148,11 +144,11 @@ public class ViewGerritChainResultsAction extends ChainResultsAction implements 
         if (linesToDisplay <= 0) {
             linesToDisplay = NumberUtils.toInt(cookieCutter.getValueFromCookie(BAMBOO_MAX_DISPLAY_LINES), DEFAULT_DISPLAY_LINES);
         }
-        
+
         if (linesToDisplay <= 0) {
             linesToDisplay = DEFAULT_DISPLAY_LINES;
         }
-        
+
         cookieCutter.saveValueInCookie(BAMBOO_MAX_DISPLAY_LINES, String.valueOf(linesToDisplay));
 
         commentsByEntity = commentService.getAllCommentsForPlanResult(getChainResult());
@@ -221,7 +217,8 @@ public class ViewGerritChainResultsAction extends ChainResultsAction implements 
         if (jobResultKeyForLogDisplay == null && getChainResult().isInProgress()) {
             for (ChainStageResult stageResult : getChainResult().getStageResults()) {
                 try{
-                    jobResultKeyForLogDisplay = Iterables.find(stageResult.getBuildResults(), BambooPredicates.resultsSummaryIsInProgress()).getBuildResultKey();
+                    //FIXME check the key is correct
+                    jobResultKeyForLogDisplay = Iterables.find(stageResult.getBuildResults(), isSummaryInProgress()).getPlanResultKey().getKey();
                     return jobResultKeyForLogDisplay;
                 } catch (NoSuchElementException e) {
                 }
@@ -231,6 +228,9 @@ public class ViewGerritChainResultsAction extends ChainResultsAction implements 
         return jobResultKeyForLogDisplay;
     }
 
+    private Predicate<BuildResultsSummary> isSummaryInProgress() {
+        return p -> p.isInProgress();
+    }
 
     public List<DeploymentProjectStatusForResultSummary> getRelatedDeployments() {
         if (relatedDeployments == null) {
@@ -246,33 +246,45 @@ public class ViewGerritChainResultsAction extends ChainResultsAction implements 
     public void setDeploymentProjectService(DeploymentProjectService deploymentProjectService) {
         this.deploymentProjectService = deploymentProjectService;
     }
-    
+
     public void setCommentService(final CommentService commentService) {
         this.commentService = commentService;
     }
 
+    //FIXME : repository interface deprecated without replacement !
     public GerritRepositoryAdapter getRepository() {
         GerritRepositoryAdapter repository = null;
 
-        Repository repo =
-            PlanHelper.getDefaultRepository(this.getImmutablePlan());
-
-        if (repo instanceof GerritRepositoryAdapter) {
-            repository = (GerritRepositoryAdapter) repo;
-        }
+        //FIXME : method deprecated without replacement
+//        Repository repo =
+//            PlanHelper.getDefaultRepository(this.getImmutablePlan());
+//
+//        if (repo instanceof GerritRepositoryAdapter) {
+//            repository = (GerritRepositoryAdapter) repo;
+//        }
 
         return repository;
     }
 
     public GerritService getGerritService() throws RepositoryException {
         if (gerritService == null) {
-            Repository repo =
-                PlanHelper.getDefaultRepository(this.getImmutablePlan());
-
-            if (repo instanceof GerritRepositoryAdapter) {
-                GerritRepositoryAdapter gra = getRepository();
-                gerritService = gra.getGerritDAO();
+            ResultsSummary rs = this.getResultsSummary();
+            VcsRepositoryData data = null;
+            final List<RepositoryChangeset> changesets = rs.getRepositoryChangesets();
+            for (RepositoryChangeset changeset : changesets) {
+                if (changeset.getRepositoryData().getPluginKey().equals(GerritConstants.VCS_MODULE_KEY)) {
+                     data = this.getRepositoryData(changeset);
+                }
             }
+
+            // FIXME
+//            Repository repo =
+//                PlanHelper.getDefaultRepository(this.getImmutablePlan());
+//
+//            if (repo instanceof GerritRepositoryAdapter) {
+//                GerritRepositoryAdapter gra = getRepository();
+//                gerritService = gra.getGerritDAO();
+//            }
         }
 
         return gerritService;
@@ -292,13 +304,12 @@ public class ViewGerritChainResultsAction extends ChainResultsAction implements 
 
     public String getRevision() {
         ResultsSummary rs = this.getResultsSummary();
-        final List<RepositoryChangeset> changesets =
-            rs.getRepositoryChangesets();
+        final List<RepositoryChangeset> changesets = rs.getRepositoryChangesets();
         // this.getChainResult().getRepositoryChangesets();
         for (RepositoryChangeset changeset : changesets) {
-            if (changeset.getRepositoryData().getPluginKey()
-                .equals(GERRIT_REPOSITORY_PLUGIN_KEY))
+            if (changeset.getRepositoryData().getPluginKey().equals(GerritConstants.VCS_MODULE_KEY)) {
                 return changeset.getChangesetId();
+            }
         }
         return null;
     }
